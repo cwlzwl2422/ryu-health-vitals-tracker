@@ -1,0 +1,270 @@
+{
+  "metadata": {
+    "appName": "BP & Sugar App",
+    "purpose": "Reference ranges used to classify bp_readings.status and bs_readings.status fields",
+    "sources": [
+      "American Diabetes Association (ADA) Standards of Care in Diabetes-2026",
+      "2025 AHA/ACC/Multi-Society Guideline for Prevention, Detection, Evaluation and Management of High Blood Pressure in Adults"
+    ],
+    "lastUpdated": "2026-06-19",
+    "disclaimer": "For general reference only. Not medical advice. Consult a healthcare provider for personal targets, especially if on medication, pregnant, elderly, or managing other health conditions."
+  },
+  "bloodPressure": {
+    "unit": "mmHg",
+    "statusValues": [
+      "Normal",
+      "Elevated",
+      "Stage1",
+      "Stage2",
+      "Crisis"
+    ],
+    "ranges": {
+      "Normal": {
+        "systolic": {
+          "max": 119
+        },
+        "diastolic": {
+          "max": 79
+        },
+        "logic": "AND",
+        "color": "#2E7D32",
+        "label": "Normal"
+      },
+      "Elevated": {
+        "systolic": {
+          "min": 120,
+          "max": 129
+        },
+        "diastolic": {
+          "max": 79
+        },
+        "logic": "AND",
+        "color": "#F9A825",
+        "label": "Elevated"
+      },
+      "Stage1": {
+        "systolic": {
+          "min": 130,
+          "max": 139
+        },
+        "diastolic": {
+          "min": 80,
+          "max": 89
+        },
+        "logic": "OR",
+        "color": "#EF6C00",
+        "label": "Stage 1 Hypertension"
+      },
+      "Stage2": {
+        "systolic": {
+          "min": 140,
+          "max": 179
+        },
+        "diastolic": {
+          "min": 90,
+          "max": 119
+        },
+        "logic": "OR",
+        "color": "#C62828",
+        "label": "Stage 2 Hypertension"
+      },
+      "Crisis": {
+        "systolic": {
+          "min": 180
+        },
+        "diastolic": {
+          "min": 120
+        },
+        "logic": "AND_OR",
+        "color": "#7B0000",
+        "label": "Hypertensive Crisis",
+        "note": "If accompanied by chest pain, shortness of breath, vision changes, or confusion, this is a hypertensive emergency - seek immediate medical attention"
+      }
+    },
+    "lowBP": {
+      "Low": {
+        "systolic": {
+          "max": 89
+        },
+        "diastolic": {
+          "max": 59
+        },
+        "logic": "OR",
+        "color": "#1565C0",
+        "label": "Low Blood Pressure",
+        "note": "Context-dependent; symptomatic hypotension (dizziness, fainting) warrants evaluation even above this threshold"
+      }
+    },
+    "classificationRule": "Use the HIGHER category triggered by either systolic OR diastolic. Example: 120/92 mmHg -> systolic suggests Elevated, diastolic suggests Stage2 -> classify as Stage2",
+    "treatmentTargets": {
+      "universal": {
+        "systolic": 130,
+        "diastolic": 80,
+        "comparator": "<"
+      },
+      "ideal": {
+        "systolic": 120,
+        "diastolic": 80,
+        "note": "as close as tolerable"
+      }
+    }
+  },
+  "bloodSugar": {
+    "units": [
+      "mg/dL",
+      "mmol/L"
+    ],
+    "statusValues": [
+      "Low",
+      "Normal",
+      "Prediabetes",
+      "Diabetes"
+    ],
+    "fasting": {
+      "Low": {
+        "max_mgdl": 69,
+        "max_mmol": 3.8,
+        "color": "#1565C0",
+        "label": "Low (Hypoglycemia)"
+      },
+      "Normal": {
+        "min_mgdl": 70,
+        "max_mgdl": 99,
+        "min_mmol": 3.9,
+        "max_mmol": 5.5,
+        "color": "#2E7D32",
+        "label": "Normal"
+      },
+      "Prediabetes": {
+        "min_mgdl": 100,
+        "max_mgdl": 125,
+        "min_mmol": 5.6,
+        "max_mmol": 6.9,
+        "color": "#F9A825",
+        "label": "Prediabetes"
+      },
+      "Diabetes": {
+        "min_mgdl": 126,
+        "min_mmol": 7.0,
+        "color": "#C62828",
+        "label": "Diabetes range"
+      }
+    },
+    "postMeal2hr": {
+      "Normal": {
+        "max_mgdl": 139,
+        "max_mmol": 7.7,
+        "color": "#2E7D32",
+        "label": "Normal"
+      },
+      "Prediabetes": {
+        "min_mgdl": 140,
+        "max_mgdl": 199,
+        "min_mmol": 7.8,
+        "max_mmol": 11.0,
+        "color": "#F9A825",
+        "label": "Prediabetes"
+      },
+      "Diabetes": {
+        "min_mgdl": 200,
+        "min_mmol": 11.1,
+        "color": "#C62828",
+        "label": "Diabetes range"
+      }
+    },
+    "random": {
+      "DiabetesDiagnostic": {
+        "min_mgdl": 200,
+        "min_mmol": 11.1,
+        "note": "Diagnostic only when combined with classic hyperglycemia symptoms (excess thirst, frequent urination, unexplained weight loss)"
+      }
+    },
+    "hypoglycemiaLevels": {
+      "Level1": {
+        "max_mgdl": 69,
+        "min_mgdl": 54,
+        "max_mmol": 3.8,
+        "min_mmol": 3.0,
+        "label": "Low - needs attention"
+      },
+      "Level2": {
+        "max_mgdl": 53,
+        "max_mmol": 2.9,
+        "label": "Serious - immediate action"
+      }
+    },
+    "a1c": {
+      "Normal": {
+        "max": 5.6,
+        "unit": "%"
+      },
+      "Prediabetes": {
+        "min": 5.7,
+        "max": 6.4,
+        "unit": "%"
+      },
+      "Diabetes": {
+        "min": 6.5,
+        "unit": "%"
+      },
+      "treatmentTargets": {
+        "mostAdults": {
+          "max": 7.0
+        },
+        "healthyLongLifeExpectancy": {
+          "max": 6.5
+        },
+        "complexOrLimitedLifeExpectancy": {
+          "max": 8.0
+        }
+      }
+    },
+    "timeInRange": {
+      "targetRange_mgdl": {
+        "min": 70,
+        "max": 180
+      },
+      "targetRange_mmol": {
+        "min": 3.9,
+        "max": 10.0
+      },
+      "goals": {
+        "timeInRangePercent": {
+          "target": 70,
+          "comparator": ">"
+        },
+        "timeBelowRange70_mgdl": {
+          "target": 4,
+          "comparator": "<"
+        },
+        "timeBelowRange54_mgdl": {
+          "target": 1,
+          "comparator": "<"
+        }
+      }
+    },
+    "perioperative": {
+      "targetRange_mgdl": {
+        "min": 100,
+        "max": 180
+      },
+      "targetRange_mmol": {
+        "min": 5.6,
+        "max": 10.0
+      },
+      "note": "Before, during, and after surgery"
+    },
+    "classificationRule": "reading_type field determines which sub-table to check: 'fasting' or 'pre-meal' -> use fasting ranges; 'post-meal' or '2hr' -> use postMeal2hr ranges; 'random' -> use random table only as a diagnostic flag, not a routine status label",
+    "conversionFormula": {
+      "mgdl_to_mmol": "value_mgdl / 18.0182",
+      "mmol_to_mgdl": "value_mmol * 18.0182"
+    }
+  },
+  "combinedRiskFlag": {
+    "cardiometabolicAlert": {
+      "trigger": "A bp_readings.status of Stage1, Stage2, or Crisis AND a bs_readings.status of Prediabetes or Diabetes occurring within the same 7-day window",
+      "label": "Cardiometabolic Risk Pattern",
+      "suggestedAction": "Flag in UI as a non-diagnostic pattern note; recommend the user discuss combined readings with their doctor"
+    }
+  }
+}
