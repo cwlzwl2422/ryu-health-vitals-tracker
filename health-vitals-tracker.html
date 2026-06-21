@@ -799,26 +799,51 @@ tr:last-child td{border-bottom:none;}
 <div class="modal-overlay" id="auth-modal">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title">☁️ Cloud Sync</span>
+      <span class="modal-title" id="auth-modal-title">☁️ Cloud Sync</span>
       <button class="modal-close" onclick="closeModal('auth-modal')">✕</button>
     </div>
+
+    <!-- Signed-in view -->
     <div id="auth-signed-in" style="display:none;">
-      <p style="font-size:13px;margin-bottom:8px;">Signed in as <strong id="auth-user-email"></strong></p>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">BP and blood sugar readings sync automatically.</p>
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--brand);color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">👤</div>
+        <p style="font-size:14px;font-weight:600;margin-bottom:2px;" id="auth-user-name"></p>
+        <p style="font-size:12px;color:var(--text-muted);" id="auth-user-email"></p>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">BP and blood sugar readings sync automatically.</p>
       <button class="btn btn-secondary btn-full" onclick="syncFromCloud()">🔄 Sync now</button>
       <button class="btn btn-full" style="margin-top:8px;background:var(--c-danger);color:#fff;" onclick="doSignOut()">Sign out</button>
     </div>
+
+    <!-- Sign-in / Sign-up view -->
     <div id="auth-signed-out">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Sign in to back up and sync your readings across devices.</p>
-      <div style="background:var(--brand-light);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--brand-dark);">🔒 <strong>Your data is private.</strong> Each person who opens this app signs into their own account — no one can see your readings. Sharing the app link does not share your data.</div>
+      <!-- Tab switcher -->
+      <div style="display:flex;background:var(--surface2);border-radius:10px;padding:3px;margin-bottom:16px;gap:3px;">
+        <button id="auth-tab-signin" onclick="setAuthTab('signin')"
+          style="flex:1;padding:8px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:var(--brand);color:#fff;transition:.2s;">Sign In</button>
+        <button id="auth-tab-signup" onclick="setAuthTab('signup')"
+          style="flex:1;padding:8px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-muted);transition:.2s;">Create Account</button>
+      </div>
+
+      <div style="background:var(--brand-light);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--brand-dark);">🔒 <strong>Your data is private.</strong> Each person signs into their own account — no one else can see your readings.</div>
+
+      <!-- Name field (sign-up only) -->
+      <div id="auth-name-group" class="form-group" style="display:none;">
+        <label>Your name</label>
+        <input type="text" id="auth-name-input" placeholder="e.g. Cheong" autocomplete="name">
+      </div>
+
       <div class="form-group">
-        <label>Email</label>
+        <label>Email address</label>
         <input type="email" id="auth-email-input" placeholder="your@email.com" autocomplete="email">
       </div>
+
       <div id="auth-otp-group" style="display:none;" class="form-group">
         <label>6-digit code from your email</label>
         <input type="text" id="auth-otp-input" placeholder="123456" maxlength="6" inputmode="numeric">
+        <small style="color:var(--text-muted);font-size:11px;">Check your inbox (and spam folder) for a code from Supabase.</small>
       </div>
+
       <button class="btn btn-primary btn-full" id="auth-action-btn" onclick="handleAuth()">Send code</button>
       <div id="auth-msg" style="margin-top:10px;font-size:12px;color:var(--text-muted);text-align:center;"></div>
     </div>
@@ -882,18 +907,37 @@ function updateSyncBadge() {
   }
 }
 
+let _authTab = 'signin'; // 'signin' | 'signup'
+
+function setAuthTab(tab) {
+  _authTab = tab;
+  _otpStep = false;
+  const isSignup = tab === 'signup';
+  // Tab button styles
+  document.getElementById('auth-tab-signin').style.background = isSignup ? 'transparent' : 'var(--brand)';
+  document.getElementById('auth-tab-signin').style.color = isSignup ? 'var(--text-muted)' : '#fff';
+  document.getElementById('auth-tab-signup').style.background = isSignup ? 'var(--brand)' : 'transparent';
+  document.getElementById('auth-tab-signup').style.color = isSignup ? '#fff' : 'var(--text-muted)';
+  // Show/hide name field
+  document.getElementById('auth-name-group').style.display = isSignup ? '' : 'none';
+  // Reset OTP step
+  document.getElementById('auth-otp-group').style.display = 'none';
+  document.getElementById('auth-action-btn').textContent = 'Send code';
+  document.getElementById('auth-msg').textContent = '';
+  document.getElementById('auth-modal-title').textContent = isSignup ? '✨ Create Account' : '☁️ Sign In';
+}
+
 function openAuthModal() {
   if (sbUser) {
     document.getElementById('auth-user-email').textContent = sbUser.email;
+    document.getElementById('auth-user-name').textContent = sbUser.user_metadata?.full_name || sbUser.email.split('@')[0];
     document.getElementById('auth-signed-in').style.display='';
     document.getElementById('auth-signed-out').style.display='none';
+    document.getElementById('auth-modal-title').textContent = '☁️ Cloud Sync';
   } else {
     document.getElementById('auth-signed-in').style.display='none';
     document.getElementById('auth-signed-out').style.display='';
-    _otpStep=false;
-    document.getElementById('auth-otp-group').style.display='none';
-    document.getElementById('auth-action-btn').textContent='Send code';
-    document.getElementById('auth-msg').textContent='';
+    setAuthTab('signin');
   }
   openModal('auth-modal');
 }
@@ -901,29 +945,38 @@ function openAuthModal() {
 async function handleAuth() {
   const emailEl=document.getElementById('auth-email-input');
   const otpEl=document.getElementById('auth-otp-input');
+  const nameEl=document.getElementById('auth-name-input');
   const msgEl=document.getElementById('auth-msg');
   const btn=document.getElementById('auth-action-btn');
+  const isSignup = _authTab === 'signup';
+
   if (!_otpStep) {
     const email=emailEl.value.trim();
-    if(!email){msgEl.textContent='Enter your email.';return;}
+    if(!email){msgEl.textContent='Enter your email address.';return;}
+    if(isSignup && !nameEl.value.trim()){msgEl.textContent='Enter your name.';return;}
     btn.disabled=true; btn.textContent='Sending…';
-    const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
+    const meta = isSignup ? {data:{full_name: nameEl.value.trim()}} : {};
+    const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, ...meta}});
     btn.disabled=false;
     if(error){msgEl.textContent=error.message;btn.textContent='Send code';return;}
     _otpStep=true;
     document.getElementById('auth-otp-group').style.display='';
     btn.textContent='Verify code';
-    msgEl.textContent='✅ Code sent! Check your email.';
+    msgEl.textContent='✅ Code sent! Check your inbox.';
   } else {
     const email=emailEl.value.trim();
     const token=otpEl.value.trim();
     if(!token){msgEl.textContent='Enter the 6-digit code.';return;}
     btn.disabled=true; btn.textContent='Verifying…';
-    const {error}=await sb.auth.verifyOtp({email,token,type:'email'});
+    const {data, error}=await sb.auth.verifyOtp({email,token,type:'email'});
     btn.disabled=false;
     if(error){msgEl.textContent=error.message;btn.textContent='Verify code';return;}
+    // Save display name to profile if signing up
+    if(isSignup && nameEl.value.trim() && data?.user) {
+      await sb.from('profiles').upsert({id:data.user.id, display_name:nameEl.value.trim()});
+    }
     closeModal('auth-modal');
-    toast('✅ Signed in — syncing…');
+    toast(isSignup ? '🎉 Account created — welcome!' : '✅ Signed in — syncing…');
   }
 }
 
