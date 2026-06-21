@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Health Vitals</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 /* ─── Design tokens (PRD §2.2) ─── */
 :root {
@@ -409,13 +410,24 @@ tr:last-child td{border-bottom:none;}
 @media(min-width:600px){
   .quick-log-row{grid-template-columns:repeat(2,1fr);}
 }
+
+/* ─── Cloud Sync ─── */
+#sync-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;}
+#sync-btn:hover{background:rgba(255,255,255,.25);}
+.sync-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.sync-dot.online{background:#4caf50;}
+.sync-dot.offline{background:#ff9800;}
+.sync-dot.out{background:rgba(255,255,255,.35);}
 </style>
 </head>
 <body>
 
 <header>
   <h1>❤️ Health Vitals<span>Personal Health Tracker</span></h1>
-  <span id="header-date"></span>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span id="header-date"></span>
+    <button id="sync-btn" onclick="openAuthModal()"><span class="sync-dot out" id="sync-dot"></span>Sign in</button>
+  </div>
 </header>
 
 <div id="content">
@@ -674,6 +686,10 @@ tr:last-child td{border-bottom:none;}
       <button class="btn btn-secondary btn-sm" onclick="exportAll()">⬇ Export</button>
     </div>
     <div class="settings-row">
+      <div class="sr-left"><p>Download App</p><small>Save this app as a single HTML file — works offline on any device</small></div>
+      <button class="btn btn-secondary btn-sm" onclick="downloadApp()">⬇ Download App</button>
+    </div>
+    <div class="settings-row">
       <div class="sr-left">
         <p>Export PDF summary <span class="badge b-Plus">Plus</span></p>
         <small>Formatted report for doctor visits</small>
@@ -711,7 +727,7 @@ tr:last-child td{border-bottom:none;}
   </div>
 
   <div class="disclaimer" style="margin-bottom:20px;">
-    v1.0 · Data stored in browser localStorage · Not medical advice
+    v1.1 · Local + Supabase cloud sync · Not medical advice
   </div>
 </div>
 
@@ -779,6 +795,36 @@ tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- ─── Cloud Auth modal ─── -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">☁️ Cloud Sync</span>
+      <button class="modal-close" onclick="closeModal('auth-modal')">✕</button>
+    </div>
+    <div id="auth-signed-in" style="display:none;">
+      <p style="font-size:13px;margin-bottom:8px;">Signed in as <strong id="auth-user-email"></strong></p>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">BP and blood sugar readings sync automatically.</p>
+      <button class="btn btn-secondary btn-full" onclick="syncFromCloud()">🔄 Sync now</button>
+      <button class="btn btn-full" style="margin-top:8px;background:var(--c-danger);color:#fff;" onclick="doSignOut()">Sign out</button>
+    </div>
+    <div id="auth-signed-out">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Sign in to back up and sync your readings across devices.</p>
+      <div style="background:var(--brand-light);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--brand-dark);">🔒 <strong>Your data is private.</strong> Each person who opens this app signs into their own account — no one can see your readings. Sharing the app link does not share your data.</div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-email-input" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div id="auth-otp-group" style="display:none;" class="form-group">
+        <label>6-digit code from your email</label>
+        <input type="text" id="auth-otp-input" placeholder="123456" maxlength="6" inputmode="numeric">
+      </div>
+      <button class="btn btn-primary btn-full" id="auth-action-btn" onclick="handleAuth()">Send code</button>
+      <div id="auth-msg" style="margin-top:10px;font-size:12px;color:var(--text-muted);text-align:center;"></div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -790,14 +836,147 @@ const KEYS = {bp:'hvt_bp', sugar:'hvt_sugar', weight:'hvt_weight', hr:'hvt_hr'};
 const load = k => { try { return JSON.parse(localStorage.getItem(KEYS[k])||'[]'); } catch { return []; } };
 const save = (k,d) => localStorage.setItem(KEYS[k], JSON.stringify(d));
 function addEntry(k, e) {
-  e.id = Date.now() + Math.random().toString(36).slice(2,7);
+  e.id = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random().toString(36).slice(2,7));
   const d = [e, ...load(k)];
-  save(k, d); return d;
+  save(k, d);
+  if (sbUser) { if(k==='bp') pushBpCloud(e); else if(k==='sugar') pushBsCloud(e); }
+  return d;
 }
-function delEntry(k, id) { const d = load(k).filter(e=>e.id!==id); save(k,d); return d; }
+function delEntry(k, id) {
+  if (sbUser) { if(k==='bp') sb.from('bp_readings').delete().eq('id',id).eq('user_id',sbUser.id); else if(k==='sugar') sb.from('bs_readings').delete().eq('id',id).eq('user_id',sbUser.id); }
+  const d = load(k).filter(e=>e.id!==id); save(k,d); return d;
+}
 function updateEntry(k, id, patch) {
   const d = load(k).map(e => e.id===id ? {...e,...patch, last_edited_at: new Date().toISOString()} : e);
-  save(k,d); return d;
+  save(k,d);
+  if (sbUser) {
+    const updated = d.find(e=>e.id===id);
+    if (updated) { if(k==='bp') pushBpCloud(updated); else if(k==='sugar') pushBsCloud(updated); }
+  }
+  return d;
+}
+
+// ══════════════════════════════════════════════
+// CLOUD SYNC (Supabase)
+// ══════════════════════════════════════════════
+const SUPABASE_URL  = 'https://eqhapodyjzmwsrklvdrv.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaGFwb2R5anptd3Nya2x2ZHJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NDkyODMsImV4cCI6MjA5NzUyNTI4M30.3UZoTm3BQI4Em2jOcbOVUlTH3cgT5EzBBUjlQexfF4A';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+let sbUser = null;
+let _otpStep = false;
+
+sb.auth.onAuthStateChange((event, session) => {
+  sbUser = session?.user ?? null;
+  updateSyncBadge();
+  if (sbUser && (event==='SIGNED_IN'||event==='INITIAL_SESSION')) syncFromCloud();
+});
+
+function updateSyncBadge() {
+  const btn = document.getElementById('sync-btn');
+  if (!btn) return;
+  if (sbUser) {
+    const name = sbUser.email.split('@')[0];
+    btn.innerHTML = `<span class="sync-dot online" id="sync-dot"></span>${name}`;
+  } else {
+    btn.innerHTML = `<span class="sync-dot out" id="sync-dot"></span>Sign in`;
+  }
+}
+
+function openAuthModal() {
+  if (sbUser) {
+    document.getElementById('auth-user-email').textContent = sbUser.email;
+    document.getElementById('auth-signed-in').style.display='';
+    document.getElementById('auth-signed-out').style.display='none';
+  } else {
+    document.getElementById('auth-signed-in').style.display='none';
+    document.getElementById('auth-signed-out').style.display='';
+    _otpStep=false;
+    document.getElementById('auth-otp-group').style.display='none';
+    document.getElementById('auth-action-btn').textContent='Send code';
+    document.getElementById('auth-msg').textContent='';
+  }
+  openModal('auth-modal');
+}
+
+async function handleAuth() {
+  const emailEl=document.getElementById('auth-email-input');
+  const otpEl=document.getElementById('auth-otp-input');
+  const msgEl=document.getElementById('auth-msg');
+  const btn=document.getElementById('auth-action-btn');
+  if (!_otpStep) {
+    const email=emailEl.value.trim();
+    if(!email){msgEl.textContent='Enter your email.';return;}
+    btn.disabled=true; btn.textContent='Sending…';
+    const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
+    btn.disabled=false;
+    if(error){msgEl.textContent=error.message;btn.textContent='Send code';return;}
+    _otpStep=true;
+    document.getElementById('auth-otp-group').style.display='';
+    btn.textContent='Verify code';
+    msgEl.textContent='✅ Code sent! Check your email.';
+  } else {
+    const email=emailEl.value.trim();
+    const token=otpEl.value.trim();
+    if(!token){msgEl.textContent='Enter the 6-digit code.';return;}
+    btn.disabled=true; btn.textContent='Verifying…';
+    const {error}=await sb.auth.verifyOtp({email,token,type:'email'});
+    btn.disabled=false;
+    if(error){msgEl.textContent=error.message;btn.textContent='Verify code';return;}
+    closeModal('auth-modal');
+    toast('✅ Signed in — syncing…');
+  }
+}
+
+async function doSignOut() {
+  await sb.auth.signOut();
+  sbUser=null; updateSyncBadge(); closeModal('auth-modal'); toast('Signed out');
+}
+
+// Row mappers
+function toBpRow(e){return{id:e.id,user_id:sbUser.id,systolic:e.sys,diastolic:e.dia,pulse:e.pulse,status:e.status,recorded_at:e.dt?new Date(e.dt).toISOString():new Date().toISOString(),note:e.note||null};}
+function toBsRow(e){return{id:e.id,user_id:sbUser.id,reading_type:e.type||'fasting',glucose_value:e.value,unit:e.unit||'mg/dL',status:e.status,recorded_at:e.dt?new Date(e.dt).toISOString():new Date().toISOString(),note:e.note||null};}
+function fromBpRow(r){return{id:r.id,sys:r.systolic,dia:r.diastolic,pulse:r.pulse,status:r.status,dt:r.recorded_at,note:r.note||'',last_edited_at:r.last_edited_at||null};}
+function fromBsRow(r){return{id:r.id,type:r.reading_type,value:parseFloat(r.glucose_value),unit:r.unit,status:r.status,dt:r.recorded_at,note:r.note||'',last_edited_at:r.last_edited_at||null};}
+
+async function pushBpCloud(e){try{await sb.from('bp_readings').upsert(toBpRow(e));}catch(err){console.error('BP push',err);}}
+async function pushBsCloud(e){try{await sb.from('bs_readings').upsert(toBsRow(e));}catch(err){console.error('BS push',err);}}
+
+function downloadApp() {
+  // Fetch the live HTML source and offer it as a download
+  fetch(window.location.href)
+    .then(r => r.text())
+    .then(html => {
+      const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'health-vitals-tracker.html';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      toast('✅ App downloaded — open the file in any browser');
+    })
+    .catch(() => {
+      // Fallback for file:// — serialise current DOM
+      const blob = new Blob([document.documentElement.outerHTML], {type:'text/html;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download='health-vitals-tracker.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast('✅ App downloaded');
+    });
+}
+
+async function syncFromCloud(){
+  if(!sbUser)return;
+  try{
+    const[bpR,bsR]=await Promise.all([
+      sb.from('bp_readings').select('*').eq('user_id',sbUser.id).order('recorded_at',{ascending:false}),
+      sb.from('bs_readings').select('*').eq('user_id',sbUser.id).order('recorded_at',{ascending:false}),
+    ]);
+    if(bpR.data?.length) save('bp',bpR.data.map(fromBpRow));
+    if(bsR.data?.length) save('sugar',bsR.data.map(fromBsRow));
+    renderHome();
+    toast('☁️ Synced from cloud');
+  }catch(err){console.error('Sync',err);}
 }
 
 // ══════════════════════════════════════════════
