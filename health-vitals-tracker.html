@@ -1778,6 +1778,50 @@ setGreeting();
 ['bphr-dt','gl-dt'].forEach(setNow);
 loadProfileFields();
 renderHome();
+
+/* ── PWA: manifest + service worker ── */
+(function setupPWA(){
+  function drawIcon(size){
+    var c=document.createElement('canvas');
+    c.width=c.height=size;
+    var ctx=c.getContext('2d'),cx=size/2;
+    ctx.fillStyle='#C96B47';
+    ctx.beginPath();ctx.arc(cx,cx,cx,0,Math.PI*2);ctx.fill();
+    var sc=size/100;
+    ctx.save();ctx.scale(sc,sc);
+    ctx.fillStyle='rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(50,78);
+    ctx.bezierCurveTo(50,78,18,56,18,34);
+    ctx.bezierCurveTo(18,21,29,13,40,18);
+    ctx.bezierCurveTo(45,21,48,25,50,30);
+    ctx.bezierCurveTo(52,25,55,21,60,18);
+    ctx.bezierCurveTo(71,13,82,21,82,34);
+    ctx.bezierCurveTo(82,56,50,78,50,78);
+    ctx.fill();
+    ctx.strokeStyle='#C96B47';ctx.lineWidth=5;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();
+    ctx.moveTo(24,42);ctx.lineTo(34,42);ctx.lineTo(38,26);
+    ctx.lineTo(44,56);ctx.lineTo(50,38);ctx.lineTo(56,42);ctx.lineTo(76,42);
+    ctx.stroke();ctx.restore();
+    return c.toDataURL('image/png');
+  }
+  try{
+    var i192=drawIcon(192),i512=drawIcon(512);
+    var m={name:'Health Vitals Tracker',short_name:'Health Vitals',
+      description:'Track BP, blood sugar and heart rate',
+      start_url:'./health-vitals-tracker.html',scope:'./',display:'standalone',
+      background_color:'#FAF0EC',theme_color:'#C96B47',orientation:'portrait-primary',
+      icons:[{src:i192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
+             {src:i512,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
+    var blob=new Blob([JSON.stringify(m)],{type:'application/manifest+json'});
+    var lnk=document.createElement('link');
+    lnk.rel='manifest';lnk.href=URL.createObjectURL(blob);
+    document.head.appendChild(lnk);
+  }catch(e){console.warn('manifest:',e);}
+  if('serviceWorker' in navigator)
+    navigator.serviceWorker.register('./sw.js').catch(function(e){console.warn('SW:',e);});
+})();
 </script>
 </body>
 </html>
