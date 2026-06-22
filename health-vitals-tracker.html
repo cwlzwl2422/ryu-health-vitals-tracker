@@ -842,9 +842,12 @@ tr:last-child td{border-bottom:none;}
         <input type="email" id="auth-email-input" placeholder="your@email.com" autocomplete="email">
       </div>
 
-      <small style="display:block;margin-bottom:10px;color:var(--text-muted);font-size:11px;">A sign-in link will be sent to your email. Check <strong>Spam</strong> if you don't see it.</small>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="auth-password-input" placeholder="••••••••" autocomplete="current-password" minlength="6">
+      </div>
 
-      <button class="btn btn-primary btn-full" id="auth-action-btn" onclick="handleAuth()">Send sign-in link</button>
+      <button class="btn btn-primary btn-full" id="auth-action-btn" onclick="handleAuth()">Sign In</button>
       <div id="auth-msg" style="margin-top:10px;font-size:12px;color:var(--text-muted);text-align:center;"></div>
       <div style="margin-top:14px;text-align:center;border-top:1px solid var(--border);padding-top:12px;">
         <button onclick="closeModal('auth-modal')" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;text-decoration:underline;">Use Offline (no cloud sync)</button>
@@ -892,20 +895,6 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let sbUser = null;
 
-/* Handle magic-link redirect: if URL contains #access_token, Supabase SDK
-   auto-parses it and fires SIGNED_IN — just clear the hash for cleanliness */
-if (window.location.hash.includes('access_token')) {
-  sb.auth.getSession().then(({data:{session}}) => {
-    if (session) {
-      sbUser = session.user;
-      updateSyncBadge();
-      syncFromCloud();
-      closeModal('auth-modal');
-      toast('✅ Signed in via email link!');
-    }
-  });
-  history.replaceState(null, '', window.location.pathname);
-}
 
 sb.auth.onAuthStateChange((event, session) => {
   sbUser = session?.user ?? null;
@@ -936,7 +925,10 @@ function setAuthTab(tab) {
   document.getElementById('auth-tab-signup').style.color = isSignup ? '#fff' : 'var(--text-muted)';
   // Show/hide name field
   document.getElementById('auth-name-group').style.display = isSignup ? '' : 'none';
-  document.getElementById('auth-action-btn').textContent = 'Send sign-in link';
+  document.getElementById('auth-action-btn').textContent = isSignup ? 'Create Account' : 'Sign In';
+  document.getElementById('auth-password-input').value = '';
+  const pwdInput = document.getElementById('auth-password-input');
+  pwdInput.autocomplete = isSignup ? 'new-password' : 'current-password';
   document.getElementById('auth-msg').textContent = '';
   document.getElementById('auth-modal-title').textContent = isSignup ? '✨ Create Account' : '☁️ Sign In';
 }
@@ -958,21 +950,34 @@ function openAuthModal() {
 
 async function handleAuth() {
   const emailEl=document.getElementById('auth-email-input');
+  const pwdEl=document.getElementById('auth-password-input');
   const nameEl=document.getElementById('auth-name-input');
   const msgEl=document.getElementById('auth-msg');
   const btn=document.getElementById('auth-action-btn');
   const isSignup = _authTab === 'signup';
 
   const email=emailEl.value.trim();
+  const password=pwdEl.value;
   if(!email){msgEl.textContent='Enter your email address.';return;}
+  if(!password||password.length<6){msgEl.textContent='Password must be at least 6 characters.';return;}
   if(isSignup && !nameEl.value.trim()){msgEl.textContent='Enter your name.';return;}
-  btn.disabled=true; btn.textContent='Sending…';
-  const meta = isSignup ? {data:{full_name: nameEl.value.trim()}} : {};
-  const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, emailRedirectTo:'https://cwlzwl2422.github.io/ryu-health-vitals-tracker/', ...meta}});
-  btn.disabled=false;
-  if(error){msgEl.textContent=error.message;btn.textContent='Send sign-in link';return;}
-  msgEl.innerHTML='✅ Magic link sent! Check your email and click the link to sign in.';
-  btn.textContent='Resend link';
+
+  btn.disabled=true; btn.textContent=isSignup?'Creating…':'Signing in…';
+
+  if(isSignup){
+    const {data,error}=await sb.auth.signUp({email, password, options:{data:{full_name:nameEl.value.trim()}}});
+    btn.disabled=false;
+    if(error){msgEl.textContent=error.message;btn.textContent='Create Account';return;}
+    if(data?.user?.identities?.length===0){msgEl.textContent='An account with this email already exists. Please sign in.';btn.textContent='Create Account';return;}
+    closeModal('auth-modal');
+    toast('🎉 Account created — welcome!');
+  } else {
+    const {error}=await sb.auth.signInWithPassword({email, password});
+    btn.disabled=false;
+    if(error){msgEl.textContent=error.message==='Invalid login credentials'?'Incorrect email or password.':error.message;btn.textContent='Sign In';return;}
+    closeModal('auth-modal');
+    toast('✅ Signed in — syncing…');
+  }
 }
 
 async function doSignOut() {
