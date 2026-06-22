@@ -842,15 +842,13 @@ tr:last-child td{border-bottom:none;}
         <input type="email" id="auth-email-input" placeholder="your@email.com" autocomplete="email">
       </div>
 
-      <div id="auth-otp-group" style="display:none;" class="form-group">
-        <label>6-digit code from your email</label>
-        <input type="text" id="auth-otp-input" placeholder="123456" maxlength="6" inputmode="numeric">
-        <small style="color:var(--text-muted);font-size:11px;">Check <strong>Gmail Spam</strong> for email from <em>noreply@mail.supabase.io</em> — or click the magic link to sign in instantly.</small>
-      </div>
+      <small style="display:block;margin-bottom:10px;color:var(--text-muted);font-size:11px;">A sign-in link will be sent to your email. Check <strong>Spam</strong> if you don't see it.</small>
 
-      <button class="btn btn-primary btn-full" id="auth-action-btn" onclick="handleAuth()">Send code</button>
-      <div style="margin-top:14px;text-align:center;border-top:1px solid var(--border);padding-top:12px;"><button onclick="closeModal('auth-modal')" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;text-decoration:underline;">Use Offline (no cloud sync)</button></div>
+      <button class="btn btn-primary btn-full" id="auth-action-btn" onclick="handleAuth()">Send sign-in link</button>
       <div id="auth-msg" style="margin-top:10px;font-size:12px;color:var(--text-muted);text-align:center;"></div>
+      <div style="margin-top:14px;text-align:center;border-top:1px solid var(--border);padding-top:12px;">
+        <button onclick="closeModal('auth-modal')" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;text-decoration:underline;">Use Offline (no cloud sync)</button>
+      </div>
     </div>
   </div>
 </div>
@@ -893,14 +891,20 @@ const SUPABASE_URL  = 'https://eqhapodyjzmwsrklvdrv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaGFwb2R5anptd3Nya2x2ZHJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NDkyODMsImV4cCI6MjA5NzUyNTI4M30.3UZoTm3BQI4Em2jOcbOVUlTH3cgT5EzBBUjlQexfF4A';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let sbUser = null;
-let _otpStep = false;
 
-/* Handle magic-link */
-if(window.location.hash.includes('access_token')){
-  sb.auth.getSession().then(({data:{session}})=>{
-    if(session){sbUser=session.user;updateSyncBadge();syncFromCloud();closeModal('auth-modal');toast('✅ Signed in via email link!');}
+/* Handle magic-link redirect: if URL contains #access_token, Supabase SDK
+   auto-parses it and fires SIGNED_IN — just clear the hash for cleanliness */
+if (window.location.hash.includes('access_token')) {
+  sb.auth.getSession().then(({data:{session}}) => {
+    if (session) {
+      sbUser = session.user;
+      updateSyncBadge();
+      syncFromCloud();
+      closeModal('auth-modal');
+      toast('✅ Signed in via email link!');
+    }
   });
-  history.replaceState(null,'',window.location.pathname);
+  history.replaceState(null, '', window.location.pathname);
 }
 
 sb.auth.onAuthStateChange((event, session) => {
@@ -924,7 +928,6 @@ let _authTab = 'signin'; // 'signin' | 'signup'
 
 function setAuthTab(tab) {
   _authTab = tab;
-  _otpStep = false;
   const isSignup = tab === 'signup';
   // Tab button styles
   document.getElementById('auth-tab-signin').style.background = isSignup ? 'transparent' : 'var(--brand)';
@@ -933,9 +936,7 @@ function setAuthTab(tab) {
   document.getElementById('auth-tab-signup').style.color = isSignup ? '#fff' : 'var(--text-muted)';
   // Show/hide name field
   document.getElementById('auth-name-group').style.display = isSignup ? '' : 'none';
-  // Reset OTP step
-  document.getElementById('auth-otp-group').style.display = 'none';
-  document.getElementById('auth-action-btn').textContent = 'Send code';
+  document.getElementById('auth-action-btn').textContent = 'Send sign-in link';
   document.getElementById('auth-msg').textContent = '';
   document.getElementById('auth-modal-title').textContent = isSignup ? '✨ Create Account' : '☁️ Sign In';
 }
@@ -957,40 +958,21 @@ function openAuthModal() {
 
 async function handleAuth() {
   const emailEl=document.getElementById('auth-email-input');
-  const otpEl=document.getElementById('auth-otp-input');
   const nameEl=document.getElementById('auth-name-input');
   const msgEl=document.getElementById('auth-msg');
   const btn=document.getElementById('auth-action-btn');
   const isSignup = _authTab === 'signup';
 
-  if (!_otpStep) {
-    const email=emailEl.value.trim();
-    if(!email){msgEl.textContent='Enter your email address.';return;}
-    if(isSignup && !nameEl.value.trim()){msgEl.textContent='Enter your name.';return;}
-    btn.disabled=true; btn.textContent='Sending…';
-    const meta = isSignup ? {data:{full_name: nameEl.value.trim()}} : {};
-    const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, emailRedirectTo:'https://cwlzwl2422.github.io/ryu-health-vitals-tracker/health-vitals-tracker.html', ...meta}});
-    btn.disabled=false;
-    if(error){msgEl.textContent=error.message;btn.textContent='Send code';return;}
-    _otpStep=true;
-    document.getElementById('auth-otp-group').style.display='';
-    btn.textContent='Verify code';
-    msgEl.textContent='✅ Code sent! Check your inbox.';
-  } else {
-    const email=emailEl.value.trim();
-    const token=otpEl.value.trim();
-    if(!token){msgEl.textContent='Enter the 6-digit code.';return;}
-    btn.disabled=true; btn.textContent='Verifying…';
-    const {data, error}=await sb.auth.verifyOtp({email,token,type:'email'});
-    btn.disabled=false;
-    if(error){msgEl.textContent=error.message;btn.textContent='Verify code';return;}
-    // Save display name to profile if signing up
-    if(isSignup && nameEl.value.trim() && data?.user) {
-      await sb.from('profiles').upsert({id:data.user.id, display_name:nameEl.value.trim()});
-    }
-    closeModal('auth-modal');
-    toast(isSignup ? '🎉 Account created — welcome!' : '✅ Signed in — syncing…');
-  }
+  const email=emailEl.value.trim();
+  if(!email){msgEl.textContent='Enter your email address.';return;}
+  if(isSignup && !nameEl.value.trim()){msgEl.textContent='Enter your name.';return;}
+  btn.disabled=true; btn.textContent='Sending…';
+  const meta = isSignup ? {data:{full_name: nameEl.value.trim()}} : {};
+  const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, emailRedirectTo:'https://cwlzwl2422.github.io/ryu-health-vitals-tracker/', ...meta}});
+  btn.disabled=false;
+  if(error){msgEl.textContent=error.message;btn.textContent='Send sign-in link';return;}
+  msgEl.innerHTML='✅ Magic link sent! Check your email and click the link to sign in.';
+  btn.textContent='Resend link';
 }
 
 async function doSignOut() {
@@ -1791,13 +1773,14 @@ renderHome();
 /* ── PWA: manifest + service worker ── */
 (function setupPWA(){
   function drawIcon(size){
-    var c=document.createElement('canvas');
+    const c=document.createElement('canvas');
     c.width=c.height=size;
-    var ctx=c.getContext('2d'),cx=size/2;
+    const ctx=c.getContext('2d');
+    const s=size,cx=s/2,cy=s/2;
     ctx.fillStyle='#C96B47';
-    ctx.beginPath();ctx.arc(cx,cx,cx,0,Math.PI*2);ctx.fill();
-    var sc=size/100;
-    ctx.save();ctx.scale(sc,sc);
+    ctx.beginPath(); ctx.arc(cx,cy,cx,0,Math.PI*2); ctx.fill();
+    const sc=size/100;
+    ctx.save(); ctx.scale(sc,sc);
     ctx.fillStyle='rgba(255,255,255,0.95)';
     ctx.beginPath();
     ctx.moveTo(50,78);
@@ -1808,28 +1791,40 @@ renderHome();
     ctx.bezierCurveTo(71,13,82,21,82,34);
     ctx.bezierCurveTo(82,56,50,78,50,78);
     ctx.fill();
-    ctx.strokeStyle='#C96B47';ctx.lineWidth=5;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.strokeStyle='#C96B47'; ctx.lineWidth=5;
+    ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.beginPath();
-    ctx.moveTo(24,42);ctx.lineTo(34,42);ctx.lineTo(38,26);
-    ctx.lineTo(44,56);ctx.lineTo(50,38);ctx.lineTo(56,42);ctx.lineTo(76,42);
-    ctx.stroke();ctx.restore();
+    ctx.moveTo(24,42); ctx.lineTo(34,42); ctx.lineTo(38,26);
+    ctx.lineTo(44,56); ctx.lineTo(50,38); ctx.lineTo(56,42); ctx.lineTo(76,42);
+    ctx.stroke();
+    ctx.restore();
     return c.toDataURL('image/png');
   }
-  try{
-    var i192=drawIcon(192),i512=drawIcon(512);
-    var m={name:'Health Vitals Tracker',short_name:'Health Vitals',
-      description:'Track BP, blood sugar and heart rate',
-      start_url:'./health-vitals-tracker.html',scope:'./',display:'standalone',
-      background_color:'#FAF0EC',theme_color:'#C96B47',orientation:'portrait-primary',
-      icons:[{src:i192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-             {src:i512,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
-    var blob=new Blob([JSON.stringify(m)],{type:'application/manifest+json'});
-    var lnk=document.createElement('link');
-    lnk.rel='manifest';lnk.href=URL.createObjectURL(blob);
-    document.head.appendChild(lnk);
-  }catch(e){console.warn('manifest:',e);}
-  if('serviceWorker' in navigator)
-    navigator.serviceWorker.register('./sw.js').catch(function(e){console.warn('SW:',e);});
+  try {
+    const i192=drawIcon(192), i512=drawIcon(512);
+    const manifest={
+      name:'Health Vitals Tracker',
+      short_name:'Health Vitals',
+      description:'Track BP, blood sugar, heart rate and weight',
+      start_url:'./health-vitals-tracker.html',
+      scope:'./',
+      display:'standalone',
+      background_color:'#FAF0EC',
+      theme_color:'#C96B47',
+      orientation:'portrait-primary',
+      icons:[
+        {src:i192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
+        {src:i512,sizes:'512x512',type:'image/png',purpose:'any maskable'}
+      ]
+    };
+    const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
+    const link=document.createElement('link');
+    link.rel='manifest'; link.href=URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  } catch(e){ console.warn('PWA manifest error',e); }
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));
+  }
 })();
 </script>
 </body>
