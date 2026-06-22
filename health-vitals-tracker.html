@@ -1895,29 +1895,6 @@ renderHome();
     ctx.restore();
     return c.toDataURL('image/png');
   }
-  try {
-    const manifest={
-      name:'BP & Sugar Tracker',
-      short_name:'BP & Sugar',
-      description:'Track blood pressure and blood sugar daily',
-      start_url:'./health-vitals-tracker.html',
-      scope:'./',
-      display:'standalone',
-      background_color:'#1565C0',
-      theme_color:'#1565C0',
-      orientation:'portrait-primary',
-      icons:[
-        {src:'./icon-192.png',sizes:'192x192',type:'image/png',purpose:'any'},
-        {src:'./icon-192.png',sizes:'192x192',type:'image/png',purpose:'maskable'},
-        {src:'./icon-512.png',sizes:'512x512',type:'image/png',purpose:'any'},
-        {src:'./icon-512.png',sizes:'512x512',type:'image/png',purpose:'maskable'}
-      ]
-    };
-    const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
-    const link=document.createElement('link');
-    link.rel='manifest'; link.href=URL.createObjectURL(blob);
-    document.head.appendChild(link);
-  } catch(e){ console.warn('PWA manifest error',e); }
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));
   }
